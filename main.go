@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,9 +15,12 @@ import (
 )
 
 type GTSS []struct {
-	C string      `json:"c"`
-	V [][]float64 `json:"v"`
+	C string            `json:"c"`
+	L map[string]string `json:"l"`
+	V [][]float64       `json:"v"`
 }
+
+type Stack []GTSS
 
 type Config struct {
 	Endpoint string `json:"endpoint"`
@@ -48,7 +53,7 @@ func main() {
 
 	for _, f := range files {
 
-		if !strings.Contains(f.Name(), ".mc2") {
+		if !strings.HasSuffix(f.Name(), ".mc2") {
 			continue
 		}
 
@@ -62,11 +67,21 @@ func main() {
 			log.Fatal(err)
 		}
 
+		if resp.StatusCode != 200 {
+
+			dump, err := httputil.DumpResponse(resp, true)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			log.Fatalf("%q", dump)
+		}
+
 		defer resp.Body.Close()
 
-		var rawgtss GTSS
+		var stack Stack
 
-		err = json.NewDecoder(resp.Body).Decode(&rawgtss)
+		err = json.NewDecoder(resp.Body).Decode(&stack)
 		if err != nil {
 			panic(err)
 		}
@@ -74,26 +89,28 @@ func main() {
 		var lines [][]string
 		lines = append(lines, []string{"timestamp(in sec)", "value"})
 
-		for _, gts := range rawgtss {
+		for _, gtss := range stack {
+			for _, gts := range gtss {
 
-			for _, tick := range gts.V {
-				ts := strconv.FormatFloat(tick[0]/1000.0/1000.0, 'E', -1, 64)
-				value := strconv.FormatFloat(tick[1], 'E', -1, 64)
-				lines = append(lines, []string{ts, value})
+				for _, tick := range gts.V {
+					ts := strconv.FormatFloat(tick[0]/1000.0/1000.0, 'E', -1, 64)
+					value := strconv.FormatFloat(tick[1], 'E', -1, 64)
+					lines = append(lines, []string{ts, value})
+				}
+
+				out, err := os.Create(dir + "/" + gts.C + strings.Replace(fmt.Sprintf("%+v", gts.L), "map", "", -1) + ".csv")
+				if err != nil {
+					panic(err)
+				}
+
+				w := csv.NewWriter(out)
+				w.WriteAll(lines) // calls Flush internally
+
+				if err := w.Error(); err != nil {
+					log.Fatalln("error writing csv:", err)
+				}
+				out.Close()
 			}
-
-			out, err := os.Create(dir + "/" + f.Name() + "-" + gts.C + ".csv")
-			if err != nil {
-				panic(err)
-			}
-
-			w := csv.NewWriter(out)
-			w.WriteAll(lines) // calls Flush internally
-
-			if err := w.Error(); err != nil {
-				log.Fatalln("error writing csv:", err)
-			}
-			out.Close()
 		}
 
 	}

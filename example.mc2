@@ -1,0 +1,9 @@
+NEWGTS 'gts' RENAME { 'label' 'value' } RELABEL 1 50 <% NaN NaN NaN RAND ADDVALUE %> FOR
+
+// we add outliers
+12 NaN NaN NaN 1.001 ADDVALUE
+24 NaN NaN NaN 100.0 ADDVALUE
+35 NaN NaN NaN 500.0 ADDVALUE
+
+// mandatory
+DEPTH ->LIST FLATTEN

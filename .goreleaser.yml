@@ -6,3 +6,11 @@ builds:
       - linux
     goarch:
       - amd64
+archive:
+  # Additional files/globs you want to add to the archive.
+  # Defaults are any files matching `LICENCE*`, `LICENSE*`,
+  # `README*` and `CHANGELOG*` (case-insensitive).
+  files:
+    - LICENSE
+    - README.md
+    - config.json
